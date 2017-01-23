@@ -3,7 +3,7 @@
 #include "./catch.hpp"
 #include "../parser.hpp"
 
-using CSV = std::vector<std::vector<std::string>>;
+using namespace aria::csv;
 
 TEST_CASE("comma in quotes") {
   CsvReader reader("./data/comma_in_quotes.csv");
