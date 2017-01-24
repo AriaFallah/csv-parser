@@ -1,3 +1,3 @@
 # csv parser
 
-WIP CSV Parser written in C++14
+WIP C++11 CSV Parser
