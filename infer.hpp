@@ -19,7 +19,6 @@ namespace aria {
         if (csv.empty()) return {};
 
         const int numCols = csv[0].size();
-
         std::vector<std::thread> threads;
         std::vector<Type> col_types(numCols);
 

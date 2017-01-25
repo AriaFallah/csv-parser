@@ -8,9 +8,6 @@
 
 namespace aria {
   namespace csv {
-    const char ESCAPE = '"';
-    const char DELIMITER = ',';
-    const char TERMINATOR = '\n';
     using CSV = std::vector<std::vector<std::string>>;
 
     // RAII file class
@@ -29,9 +26,37 @@ namespace aria {
 
     // Reads and parses lines from a csv file
     class CsvReader {
+    private:
+      // Overengineered CRLF handling
+      enum class Term : short { CRLF = -1 };
+      friend bool operator==(const Term& t, const char& c) {
+        return c == t;
+      }
+      friend bool operator==(const char& c, const Term& t) {
+        switch (t) {
+          case Term::CRLF: {
+            return c == '\r' || c == '\n';
+          }
+          default: {
+            return static_cast<char>(t) == c;
+          }
+        }
+      }
+      static auto make_term(char term) -> Term {
+        return static_cast<Term>(term);
+      }
     public:
-      explicit CsvReader(const std::string& filename)
-        : m_file(filename), m_state(State::START_FIELD), m_bufstr(), m_bufvec()
+      struct Config {
+        Config(){}
+        Config(char e, char d, char t): escape(e), delimiter(d), terminator(make_term(t)) {}
+        char escape = '"';
+        char delimiter = ',';
+        Term terminator = Term::CRLF;
+      };
+
+      explicit CsvReader(const std::string& filename, const Config& c = Config{})
+        : m_file(filename), m_state(State::START_FIELD), m_bufstr(),
+          m_bufvec(), m_escape(c.escape), m_delimiter(c.delimiter), m_terminator(c.terminator)
       {
         // Reserve space for CSV upfront
         m_bufstr.reserve(10000);
@@ -61,24 +86,20 @@ namespace aria {
         for (;;) {
           char c = stream.get();
 
-          // Ignore carriage returns. Should fix this in future.
-          if (m_state != State::IN_ESCAPED_FIELD && c == '\r') {
-            continue;
-          }
-
           switch (m_state) {
             case State::START_FIELD: {
               if (c == EOF) {
                 m_state = State::EMPTY;
                 return {};
               }
-              if (c == TERMINATOR) {
-                return add_row();
+              if (c == m_terminator) {
+                handle_crlf(stream);
+                continue;
               }
 
-              if (c == ESCAPE) {
+              if (c == m_escape) {
                 m_state = State::IN_ESCAPED_FIELD;
-              } else if (c == DELIMITER) {
+              } else if (c == m_delimiter) {
                 add_field();
               } else {
                 m_state = State::IN_FIELD;
@@ -94,13 +115,14 @@ namespace aria {
                 add_field();
                 return add_row();
               }
-              if (c == TERMINATOR) {
+              if (c == m_terminator) {
+                handle_crlf(stream);
                 m_state = State::START_FIELD;
                 add_field();
                 return add_row();
               }
 
-              if (c == DELIMITER) {
+              if (c == m_delimiter) {
                 m_state = State::START_FIELD;
                 add_field();
               } else {
@@ -111,7 +133,7 @@ namespace aria {
             }
 
             case State::IN_ESCAPED_FIELD: {
-              if (c == ESCAPE) {
+              if (c == m_escape) {
                 m_state = State::IN_ESCAPED_ESCAPE;
               } else {
                 add_char(c);
@@ -126,16 +148,17 @@ namespace aria {
                 add_field();
                 return add_row();
               }
-              if (c == TERMINATOR) {
+              if (c == m_terminator) {
+                handle_crlf(stream);
                 m_state = State::START_FIELD;
                 add_field();
                 return add_row();
               }
 
-              if (c == ESCAPE) {
+              if (c == m_escape) {
                 m_state = State::IN_ESCAPED_FIELD;
                 add_char(c);
-              } else if (c == DELIMITER) {
+              } else if (c == m_delimiter) {
                 m_state = State::START_FIELD;
                 add_field();
               } else {
@@ -158,6 +181,17 @@ namespace aria {
       State m_state;
       std::string m_bufstr;
       std::vector<std::string> m_bufvec;
+
+      // Configurable attributes
+      char m_escape;
+      char m_delimiter;
+      Term m_terminator;
+
+      auto handle_crlf(std::ifstream& s) -> void {
+        if (m_terminator == Term::CRLF && s.peek() == '\n') {
+          s.get();
+        }
+      }
 
       auto add_char(const char c) -> void {
         m_bufstr += c;

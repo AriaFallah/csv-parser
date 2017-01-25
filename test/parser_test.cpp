@@ -24,7 +24,7 @@ TEST_CASE("empty") {
   CHECK(reader.read_all() == expected);
 }
 
-TEST_CASE("empty clrf") {
+TEST_CASE("empty crlf") {
   CsvReader reader("./data/empty_crlf.csv");
   CSV expected = {
     { "a", "b", "c" },
@@ -64,7 +64,7 @@ TEST_CASE("newlines") {
   CHECK(reader.read_all() == expected);
 }
 
-TEST_CASE("newlines clrf") {
+TEST_CASE("newlines crlf") {
   CsvReader reader("./data/newlines_crlf.csv");
   CSV expected = {
     { "a", "b", "c" },
@@ -94,7 +94,7 @@ TEST_CASE("simple") {
   CHECK(reader.read_all() == expected);
 }
 
-TEST_CASE("simple clrf") {
+TEST_CASE("simple crlf") {
   CsvReader reader("./data/simple_crlf.csv");
   CSV expected = {
     { "a", "b", "c" },
