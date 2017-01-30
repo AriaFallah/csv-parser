@@ -15,7 +15,7 @@ namespace aria {
 
     class Infer {
     public:
-      static auto infer_csv(const CSV& csv) -> std::vector<Type> {
+      static std::vector<Type> infer_csv(const CSV& csv) {
         if (csv.empty()) return {};
 
         const int numCols = csv[0].size();
@@ -37,7 +37,7 @@ namespace aria {
       static const std::regex is_float;
       static const std::regex is_date;
 
-      static auto infer_col(const CSV *csv, const int col, Type *t) -> void {
+      static void infer_col(const CSV *csv, const int col, Type *t) {
         Type col_type = Type::NONE;
 
         for (const auto& row : *csv) {
@@ -50,7 +50,7 @@ namespace aria {
         *t = col_type;
       }
 
-      static auto get_type(const std::string& s) -> Type {
+      static Type get_type(const std::string& s) {
         if (s.empty()) {
           return Type::NONE;
         } else if (std::regex_match(s, is_int)) {

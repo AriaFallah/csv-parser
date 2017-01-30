@@ -1,7 +1,6 @@
 #ifndef ARIA_CSV_H
 #define ARIA_CSV_H
 
-#include <iostream>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -19,8 +18,12 @@ namespace aria {
           throw std::runtime_error("There was an error opening this file!");
         }
       }
-      ~File() { m_file.close(); }
-      auto get() -> std::ifstream& { return m_file; }
+      ~File() {
+        m_file.close();
+      }
+      std::ifstream& get() {
+        return m_file;
+      }
     private:
       std::ifstream m_file;
     };
@@ -30,9 +33,6 @@ namespace aria {
     private:
       // Overengineered CRLF handling
       enum class Term : char { CRLF = -2 };
-      friend bool operator==(const Term& t, const char& c) {
-        return c == t;
-      }
       friend bool operator==(const char& c, const Term& t) {
         switch (t) {
           case Term::CRLF: {
@@ -43,40 +43,52 @@ namespace aria {
           }
         }
       }
+      friend bool operator!=(const char& c, const Term& t) {
+        return !(c == t);
+      }
     public:
       struct Config {
         Config(){}
-        Config(char e, char d, char t): escape(e), delimiter(d), terminator(static_cast<Term>(t)) {}
+        Config(char e, char d, char t)
+          : escape(e),
+            delimiter(d),
+            terminator(static_cast<Term>(t))
+        {}
         char escape = '"';
         char delimiter = ',';
         Term terminator = Term::CRLF;
       };
 
       explicit CsvReader(const std::string& filename, const Config& c = Config{})
-        : m_file(filename), m_escape(c.escape), m_delimiter(c.delimiter), m_terminator(c.terminator)
+        : m_file(filename),
+          m_escape(c.escape),
+          m_delimiter(c.delimiter),
+          m_terminator(c.terminator)
       {
         m_fieldbuf.reserve(m_fieldbuf_cap);
         m_rowbuf.reserve(m_rowbuf_cap);
       }
 
-      auto empty() -> bool {
+      bool empty() {
         return m_state == State::EMPTY;
       }
 
-      auto read_all() -> CSV {
+      CSV read_all() {
         CSV csv;
         for (;;) {
           auto row = get_row();
-          if (row.empty()) {
+          if (!row) {
             break;
           }
-          csv.push_back(row);
+          csv.push_back(*row);
         }
         return csv;
       }
 
-      auto get_row() -> std::vector<std::string> {
-        if (empty()) return {};
+      std::vector<std::string>* get_row() {
+        if (empty()) return nullptr;
+
+        m_rowbuf.clear();
         std::ifstream& stream = m_file.get();
 
         for (;;) {
@@ -96,8 +108,9 @@ namespace aria {
             switch (m_state) {
               case State::START_FIELD: {
                 if (c == m_terminator) {
-                  handle_crlf(stream);
-                  continue;
+                  handle_crlf(c);
+                  add_field();
+                  return &m_rowbuf;
                 }
 
                 if (c == m_escape) {
@@ -106,7 +119,7 @@ namespace aria {
                   add_field();
                 } else {
                   m_state = State::IN_FIELD;
-                  add_char(c);
+                  m_fieldbuf += c;
                 }
 
                 break;
@@ -114,17 +127,17 @@ namespace aria {
 
               case State::IN_FIELD: {
                 if (c == m_terminator) {
-                  handle_crlf(stream);
+                  handle_crlf(c);
                   m_state = State::START_FIELD;
                   add_field();
-                  return add_row();
+                  return &m_rowbuf;
                 }
 
                 if (c == m_delimiter) {
                   m_state = State::START_FIELD;
                   add_field();
                 } else {
-                  add_char(c);
+                  m_fieldbuf += c;
                 }
 
                 break;
@@ -134,7 +147,7 @@ namespace aria {
                 if (c == m_escape) {
                   m_state = State::IN_ESCAPED_ESCAPE;
                 } else {
-                  add_char(c);
+                  m_fieldbuf += c;
                 }
 
                 break;
@@ -142,15 +155,15 @@ namespace aria {
 
               case State::IN_ESCAPED_ESCAPE: {
                 if (c == m_terminator) {
-                  handle_crlf(stream);
+                  handle_crlf(c);
                   m_state = State::START_FIELD;
                   add_field();
-                  return add_row();
+                  return &m_rowbuf;
                 }
 
                 if (c == m_escape) {
                   m_state = State::IN_ESCAPED_FIELD;
-                  add_char(c);
+                  m_fieldbuf += c;
                 } else if (c == m_delimiter) {
                   m_state = State::START_FIELD;
                   add_field();
@@ -168,11 +181,12 @@ namespace aria {
           }
 
           if (m_eof) {
-            m_state = State::EMPTY;
-            if (!m_fieldbuf.empty()) {
+            char c = m_inputbuf[m_cursor - 1]; // last read character
+            if (!m_fieldbuf.empty() || c == m_delimiter) {
               add_field();
             }
-            return add_row();
+            m_state = State::EMPTY;
+            return m_rowbuf.empty() ? nullptr : &m_rowbuf;
           }
         }
       }
@@ -195,8 +209,8 @@ namespace aria {
 
       // Buffer capacities
       static constexpr int m_rowbuf_cap = 50;
-      static constexpr int m_inputbuf_cap = 1024;
       static constexpr int m_fieldbuf_cap = 1024;
+      static constexpr int m_inputbuf_cap = 1024 * 128;
 
       // Buffers
       std::string m_fieldbuf{};
@@ -208,25 +222,19 @@ namespace aria {
       size_t m_cursor = m_inputbuf_cap;
       size_t m_inputbuf_size = m_inputbuf_cap;
 
-      auto handle_crlf(std::ifstream& s) -> void {
-        if (m_terminator == Term::CRLF && s.peek() == '\n') {
-          s.get();
+      void handle_crlf(const char c) {
+        if (m_terminator != Term::CRLF || c != '\r') {
+          return;
+        }
+
+        if (m_inputbuf[m_cursor] == '\n') {
+          m_cursor++;
         }
       }
 
-      auto add_char(const char c) -> void {
-        m_fieldbuf += c;
-      }
-
-      auto add_field() -> void {
+      void add_field() {
         m_rowbuf.push_back(m_fieldbuf);
         m_fieldbuf.clear();
-      }
-
-      auto add_row() -> std::vector<std::string> {
-        auto row(m_rowbuf);
-        m_rowbuf.clear();
-        return row;
       }
     };
   }

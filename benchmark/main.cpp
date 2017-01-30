@@ -3,12 +3,8 @@
 
 using namespace aria::csv;
 
-int main(int argc, char** argv) {
-  if (argc == 0) return 1;
-  CsvReader reader(argv[1]);
-  for (;;) {
-    auto row = reader.get_row();
-    if (row.empty()) break;
-  }
+int main() {
+  CsvReader reader("./ss10pusa.csv");
+  while (reader.get_row()) {}
   std::cout << "done!\n";
 }
