@@ -28,6 +28,8 @@ namespace aria {
     // Reads and parses lines from a csv file
     class CsvParser {
     public:
+      enum class FieldType { DATA, ROW_END, CSV_END };
+
       // Config object for nicer CsvParser constructor API
       struct Config {
         constexpr Config() noexcept {};
@@ -41,6 +43,14 @@ namespace aria {
         Term terminator = Term::CRLF;
       };
 
+      struct Field {
+        explicit Field(FieldType t): type(t) {}
+        explicit Field(const std::string& str): type(FieldType::DATA), data(str) {}
+
+        FieldType type;
+        std::string data;
+      };
+
       // Creates the CSV parser which by default, splits on commas,
       // uses quotes to escape, and handles CSV files that end in either
       // '\r', '\n', or '\r\n'.
@@ -52,7 +62,6 @@ namespace aria {
       {
         // Reserve space upfront to improve performance
         m_fieldbuf.reserve(FIELDBUF_CAP);
-        m_rowbuf.reserve(ROWBUF_CAP);
       }
 
       // The parser is in the empty state when there are
@@ -61,55 +70,35 @@ namespace aria {
         return m_state == State::EMPTY;
       }
 
-      // Reads and returns every single row in the CSV
-      CSV read_all() {
-        CSV csv;
-        for (;;) {
-          auto row = get_row();
-          if (!row) {
-            break;
-          }
-          csv.push_back(*row);
-        }
-        return csv;
-      }
-
       // Reads a single row from the CSV
-      std::vector<std::string>* get_row() {
-        if (empty()) return nullptr;
-        m_rowbuf.clear();
+      Field next_field() {
+        if (empty()) {
+          return Field(FieldType::CSV_END);
+        }
 
         // This loop runs until either the parser has
         // read an entire row or until there's no tokens left to read
         for (;;) {
-          char *token = pop_token();
-
           // If we're out of tokens to read return whatever's left in the
           // field and row buffers. If there's nothing left, return null.
-          if (!token) {
-            if (!m_fieldbuf.empty()) {
-              add_field();
-            }
+          if (!top_token()) {
             m_state = State::EMPTY;
-            return m_rowbuf.empty() ? nullptr : &m_rowbuf;
+            return !m_fieldbuf.empty() ? Field(m_fieldbuf) : Field(FieldType::CSV_END);
           }
 
-          // I don't wanna dereference everywhere.
-          char c = *token;
-
           // Parsing the CSV is done using a finite state machine
+          char c = *pop_token();
           switch (m_state) {
-            case State::START_FIELD:
+            case State::START_OF_FIELD:
               if (c == m_terminator) {
                 handle_crlf(c);
-                add_field();
-                return &m_rowbuf;
+                return Field(FieldType::ROW_END);
               }
 
               if (c == m_escape) {
                 m_state = State::IN_ESCAPED_FIELD;
               } else if (c == m_delimiter) {
-                add_field();
+                return Field(m_fieldbuf);
               } else {
                 m_state = State::IN_FIELD;
                 m_fieldbuf += c;
@@ -120,14 +109,13 @@ namespace aria {
             case State::IN_FIELD:
               if (c == m_terminator) {
                 handle_crlf(c);
-                m_state = State::START_FIELD;
-                add_field();
-                return &m_rowbuf;
+                m_state = State::END_OF_ROW;
+                return Field(m_fieldbuf);
               }
 
               if (c == m_delimiter) {
-                m_state = State::START_FIELD;
-                add_field();
+                m_state = State::START_OF_FIELD;
+                return Field(m_fieldbuf);
               } else {
                 m_fieldbuf += c;
               }
@@ -146,22 +134,25 @@ namespace aria {
             case State::IN_ESCAPED_ESCAPE:
               if (c == m_terminator) {
                 handle_crlf(c);
-                m_state = State::START_FIELD;
-                add_field();
-                return &m_rowbuf;
+                m_state = State::END_OF_ROW;
+                return Field(m_fieldbuf);
               }
 
               if (c == m_escape) {
                 m_state = State::IN_ESCAPED_FIELD;
                 m_fieldbuf += c;
               } else if (c == m_delimiter) {
-                m_state = State::START_FIELD;
-                add_field();
+                m_state = State::START_OF_FIELD;
+                return Field(m_fieldbuf);
               } else {
                 throw std::runtime_error("CSV is malformed");
               }
 
               break;
+
+            case State::END_OF_ROW:
+              m_state = State::START_OF_FIELD;
+              return Field(FieldType::ROW_END);
 
             case State::EMPTY:
               throw std::logic_error("You goofed");
@@ -171,13 +162,14 @@ namespace aria {
     private:
       // CSV state for state machine
       enum class State {
-        START_FIELD,
+        START_OF_FIELD,
         IN_FIELD,
         IN_ESCAPED_FIELD,
         IN_ESCAPED_ESCAPE,
+        END_OF_ROW,
         EMPTY
       };
-      State m_state = State::START_FIELD;
+      State m_state = State::START_OF_FIELD;
 
       // Configurable attributes
       std::ifstream m_file;
@@ -186,14 +178,12 @@ namespace aria {
       Term m_terminator;
 
       // Buffer capacities
-      static constexpr int ROWBUF_CAP = 50;
       static constexpr int FIELDBUF_CAP = 1024;
       static constexpr int INPUTBUF_CAP = 1024 * 128;
 
       // Buffers
       std::string m_fieldbuf{};
       char m_inputbuf[INPUTBUF_CAP]{};
-      std::vector<std::string> m_rowbuf{};
 
       // Misc
       bool m_eof = false;
@@ -213,12 +203,6 @@ namespace aria {
         if (token && *token == '\n') {
           m_cursor++;
         }
-      }
-
-      // Will add a single field to a CSV row
-      void add_field() {
-        m_rowbuf.push_back(m_fieldbuf);
-        m_fieldbuf.clear();
       }
 
       // Pulls the next token from the input buffer, but does not move
