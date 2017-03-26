@@ -8,48 +8,30 @@
 
 namespace aria {
   namespace csv {
+    enum class Term : char { CRLF = -2 };
     using CSV = std::vector<std::vector<std::string>>;
 
-    // RAII file class - closes file when class instance goes out of scope
-    class File {
-    public:
-      explicit File(const std::string& filename): m_file(filename) {
-        if (!m_file.good()) {
-          throw std::runtime_error("There was an error opening this file!");
-        }
+    // Checking for '\n', '\r', and '\r\n' by default
+    bool operator==(const char c, const Term t) {
+      switch (t) {
+        case Term::CRLF:
+          return c == '\r' || c == '\n';
+        default:
+          return static_cast<char>(t) == c;
       }
-      ~File() {
-        m_file.close();
-      }
-      std::ifstream& get() {
-        return m_file;
-      }
-    private:
-      std::ifstream m_file;
-    };
+    }
+
+    bool operator!=(const char c, const Term t) {
+      return !(c == t);
+    }
 
     // Reads and parses lines from a csv file
-    class CsvReader {
+    class CsvParser {
     public:
-      // Overengineered handling of checking for '\n', '\r', and '\r\n' by default
-      enum class Term : char { CRLF = -2 };
-      friend bool operator==(const char c, const Term t) {
-        switch (t) {
-          case Term::CRLF:
-            return c == '\r' || c == '\n';
-          default:
-            return static_cast<char>(t) == c;
-        }
-      }
-      friend bool operator!=(const char c, const Term t) {
-        return !(c == t);
-      }
-
-      // I felt like creating and passing in a config object
-      // is nicer than passing a lot of params. That's why this exists.
+      // Config object for nicer CsvParser constructor API
       struct Config {
-        Config(){}
-        Config(char e, char d, char t)
+        constexpr Config() noexcept {};
+        constexpr Config(char e, char d, char t) noexcept
           : escape(e),
             delimiter(d),
             terminator(static_cast<Term>(t))
@@ -62,15 +44,15 @@ namespace aria {
       // Creates the CSV parser which by default, splits on commas,
       // uses quotes to escape, and handles CSV files that end in either
       // '\r', '\n', or '\r\n'.
-      explicit CsvReader(const std::string& filename, const Config& c = Config{})
+      CsvParser(const std::string& filename, const Config& c = Config{})
         : m_file(filename),
           m_escape(c.escape),
           m_delimiter(c.delimiter),
           m_terminator(c.terminator)
       {
         // Reserve space upfront to improve performance
-        m_fieldbuf.reserve(m_fieldbuf_cap);
-        m_rowbuf.reserve(m_rowbuf_cap);
+        m_fieldbuf.reserve(FIELDBUF_CAP);
+        m_rowbuf.reserve(ROWBUF_CAP);
       }
 
       // The parser is in the empty state when there are
@@ -182,7 +164,7 @@ namespace aria {
               break;
 
             case State::EMPTY:
-              throw std::runtime_error("You goofed");
+              throw std::logic_error("You goofed");
           }
         }
       }
@@ -198,25 +180,25 @@ namespace aria {
       State m_state = State::START_FIELD;
 
       // Configurable attributes
-      File m_file;
+      std::ifstream m_file;
       char m_escape;
       char m_delimiter;
       Term m_terminator;
 
       // Buffer capacities
-      static constexpr int m_rowbuf_cap = 50;
-      static constexpr int m_fieldbuf_cap = 1024;
-      static constexpr int m_inputbuf_cap = 1024 * 128;
+      static constexpr int ROWBUF_CAP = 50;
+      static constexpr int FIELDBUF_CAP = 1024;
+      static constexpr int INPUTBUF_CAP = 1024 * 128;
 
       // Buffers
       std::string m_fieldbuf{};
-      char m_inputbuf[m_inputbuf_cap]{};
+      char m_inputbuf[INPUTBUF_CAP]{};
       std::vector<std::string> m_rowbuf{};
 
       // Misc
       bool m_eof = false;
-      size_t m_cursor = m_inputbuf_cap;
-      size_t m_inputbuf_size = m_inputbuf_cap;
+      size_t m_cursor = INPUTBUF_CAP;
+      size_t m_inputbuf_size = INPUTBUF_CAP;
 
       // When the parser hits the end of a line it needs
       // to check the special case of '\r\n' as a terminator.
@@ -243,8 +225,6 @@ namespace aria {
       // the cursor forward. If the stream is empty and the input buffer
       // is also empty return a nullptr.
       char* top_token() {
-        std::ifstream& stream = m_file.get();
-
         // Return null if there's nothing left to read
         if (m_eof && m_cursor == m_inputbuf_size) {
           return nullptr;
@@ -253,13 +233,13 @@ namespace aria {
         // Refill the input buffer if it's been fully read
         if (m_cursor == m_inputbuf_size) {
           m_cursor = 0;
-          stream.read(m_inputbuf, m_inputbuf_cap);
+          m_file.read(m_inputbuf, INPUTBUF_CAP);
 
           // Indicate we hit end of file, and resize
           // input buffer to show that it's not at full capacity
-          if (stream.eof()) {
+          if (m_file.eof()) {
             m_eof = true;
-            m_inputbuf_size = stream.gcount();
+            m_inputbuf_size = m_file.gcount();
 
             // Return null if there's nothing left to read
             if (m_inputbuf_size == 0) {

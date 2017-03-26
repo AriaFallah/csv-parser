@@ -6,7 +6,7 @@
 using namespace aria::csv;
 
 TEST_CASE("comma in quotes") {
-  CsvReader reader("./data/comma_in_quotes.csv");
+  CsvParser reader("./data/comma_in_quotes.csv");
   CSV expected = {
     { "first", "last", "address", "city", "zip" },
     { "John", "Doe", "120 any st.", "Anytown, WW", "08123" }
@@ -15,7 +15,7 @@ TEST_CASE("comma in quotes") {
 }
 
 TEST_CASE("empty") {
-  CsvReader reader("./data/empty.csv");
+  CsvParser reader("./data/empty.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "", "" },
@@ -25,7 +25,7 @@ TEST_CASE("empty") {
 }
 
 TEST_CASE("empty crlf") {
-  CsvReader reader("./data/empty_crlf.csv");
+  CsvParser reader("./data/empty_crlf.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "", "" },
@@ -35,7 +35,7 @@ TEST_CASE("empty crlf") {
 }
 
 TEST_CASE("escaped quotes") {
-  CsvReader reader("./data/escaped_quotes.csv");
+  CsvParser reader("./data/escaped_quotes.csv");
   CSV expected = {
     { "a", "b" },
     { "1", R"(ha "ha" ha)" },
@@ -45,7 +45,7 @@ TEST_CASE("escaped quotes") {
 }
 
 TEST_CASE("json") {
-  CsvReader reader("./data/json.csv");
+  CsvParser reader("./data/json.csv");
   CSV expected = {
     { "key","val" },
     { "1", R"({"type": "Point", "coordinates": [102.0, 0.5]})" }
@@ -54,7 +54,7 @@ TEST_CASE("json") {
 }
 
 TEST_CASE("newlines") {
-  CsvReader reader("./data/newlines.csv");
+  CsvParser reader("./data/newlines.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "2", "3" },
@@ -65,7 +65,7 @@ TEST_CASE("newlines") {
 }
 
 TEST_CASE("newlines crlf") {
-  CsvReader reader("./data/newlines_crlf.csv");
+  CsvParser reader("./data/newlines_crlf.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "2", "3" },
@@ -76,7 +76,7 @@ TEST_CASE("newlines crlf") {
 }
 
 TEST_CASE("quotes and newlines") {
-  CsvReader reader("./data/quotes_and_newlines.csv");
+  CsvParser reader("./data/quotes_and_newlines.csv");
   CSV expected = {
     { "a", "b" },
     { "1", "ha \n\"ha\" \nha" },
@@ -86,7 +86,7 @@ TEST_CASE("quotes and newlines") {
 }
 
 TEST_CASE("simple") {
-  CsvReader reader("./data/simple.csv");
+  CsvParser reader("./data/simple.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "2", "3" }
@@ -95,7 +95,7 @@ TEST_CASE("simple") {
 }
 
 TEST_CASE("simple crlf") {
-  CsvReader reader("./data/simple_crlf.csv");
+  CsvParser reader("./data/simple_crlf.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "2", "3" }
@@ -104,7 +104,7 @@ TEST_CASE("simple crlf") {
 }
 
 TEST_CASE("utf8") {
-  CsvReader reader("./data/utf8.csv");
+  CsvParser reader("./data/utf8.csv");
   CSV expected = {
     { "a", "b", "c" },
     { "1", "2", "3" },
