@@ -244,17 +244,41 @@ namespace aria {
     public:
       class iterator {
       public:
-        explicit iterator(CsvParser *p, bool end = false): m_parser(p), m_row(), m_cursor(0) {
+        explicit iterator(CsvParser *p, bool end = false): m_parser(p) {
           if (!end) {
             m_row.reserve(50);
+            m_current_row = 0;
             next();
           }
         }
-        void operator++(int) { next(); }
-        void operator++() { next(); }
-        bool operator==(const iterator&) const { return m_row.empty(); }
-        bool operator!=(const iterator&) const { return !m_row.empty(); }
-        std::vector<std::string>& operator*() { return m_row; }
+
+        iterator& operator++() {
+          next();
+          return *this;
+        }
+
+        iterator operator++(int) {
+          iterator i = (*this);
+          ++(*this);
+          return i;
+        }
+
+        bool operator==(const iterator& other) const {
+          return m_current_row == other.m_current_row
+            && m_row.size() == other.m_row.size();
+        }
+
+        bool operator!=(const iterator& other) const {
+          return !(*this == other);
+        }
+
+        std::vector<std::string>& operator*() {
+          return m_row;
+        }
+
+        iterator* operator->() {
+          return this;
+        }
 
         using difference_type = std::ptrdiff_t;
         using value_type = std::vector<std::string>;
@@ -263,8 +287,8 @@ namespace aria {
         using iterator_category = std::input_iterator_tag;
       private:
         CsvParser *m_parser;
+        int m_current_row = -1;
         std::vector<std::string> m_row;
-        std::vector<std::string>::size_type m_cursor;
 
         void next() {
           m_row.clear();
@@ -272,7 +296,10 @@ namespace aria {
             auto field = m_parser->next_field();
             switch (field.type) {
               case FieldType::CSV_END:
+                m_current_row = -1;
+                return;
               case FieldType::ROW_END:
+                m_current_row++;
                 return;
               case FieldType::DATA:
                 m_row.push_back(field.data);
