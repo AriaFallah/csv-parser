@@ -244,6 +244,12 @@ namespace aria {
     public:
       class iterator {
       public:
+        using difference_type = std::ptrdiff_t;
+        using value_type = std::vector<std::string>;
+        using pointer = const std::vector<std::string>*;
+        using reference = const std::vector<std::string>&;
+        using iterator_category = std::input_iterator_tag;
+
         explicit iterator(CsvParser *p, bool end = false): m_parser(p) {
           if (!end) {
             m_row.reserve(50);
@@ -272,23 +278,17 @@ namespace aria {
           return !(*this == other);
         }
 
-        std::vector<std::string>& operator*() {
+        reference operator*() const {
           return m_row;
         }
 
-        iterator* operator->() {
-          return this;
+        pointer operator->() const {
+          return &m_row;
         }
-
-        using difference_type = std::ptrdiff_t;
-        using value_type = std::vector<std::string>;
-        using pointer = const std::vector<std::string>*;
-        using reference = const std::vector<std::string>&;
-        using iterator_category = std::input_iterator_tag;
       private:
+        value_type m_row{};
         CsvParser *m_parser;
         int m_current_row = -1;
-        std::vector<std::string> m_row;
 
         void next() {
           m_row.clear();
