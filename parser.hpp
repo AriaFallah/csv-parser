@@ -9,6 +9,7 @@
 namespace aria {
   namespace csv {
     enum class Term : char { CRLF = -2 };
+    enum class FieldType { DATA, ROW_END, CSV_END };
     using CSV = std::vector<std::vector<std::string>>;
 
     // Checking for '\n', '\r', and '\r\n' by default
@@ -25,30 +26,29 @@ namespace aria {
       return !(c == t);
     }
 
+    struct Field {
+      explicit Field(FieldType t): type(t) {}
+      explicit Field(const std::string& str): type(FieldType::DATA), data(str) {}
+
+      FieldType type;
+      std::string data;
+    };
+
+
     // Reads and parses lines from a csv file
     class CsvParser {
     public:
-      enum class FieldType { DATA, ROW_END, CSV_END };
-
       // Config object for nicer CsvParser constructor API
       struct Config {
         constexpr Config() noexcept {};
         constexpr Config(char e, char d, char t) noexcept
-          : escape(e),
-            delimiter(d),
-            terminator(static_cast<Term>(t))
+        : escape(e),
+          delimiter(d),
+          terminator(static_cast<Term>(t))
         {}
         char escape = '"';
         char delimiter = ',';
         Term terminator = Term::CRLF;
-      };
-
-      struct Field {
-        explicit Field(FieldType t): type(t) {}
-        explicit Field(const std::string& str): type(FieldType::DATA), data(str) {}
-
-        FieldType type;
-        std::string data;
       };
 
       // Creates the CSV parser which by default, splits on commas,
@@ -75,21 +75,25 @@ namespace aria {
         if (empty()) {
           return Field(FieldType::CSV_END);
         }
+        m_fieldbuf.clear();
 
         // This loop runs until either the parser has
         // read an entire row or until there's no tokens left to read
         for (;;) {
+          char *maybe_token = top_token();
+
           // If we're out of tokens to read return whatever's left in the
           // field and row buffers. If there's nothing left, return null.
-          if (!top_token()) {
+          if (!maybe_token) {
             m_state = State::EMPTY;
             return !m_fieldbuf.empty() ? Field(m_fieldbuf) : Field(FieldType::CSV_END);
           }
 
           // Parsing the CSV is done using a finite state machine
-          char c = *pop_token();
+          char c = *maybe_token;
           switch (m_state) {
             case State::START_OF_FIELD:
+              m_cursor++;
               if (c == m_terminator) {
                 handle_crlf(c);
                 return Field(FieldType::ROW_END);
@@ -107,6 +111,7 @@ namespace aria {
               break;
 
             case State::IN_FIELD:
+              m_cursor++;
               if (c == m_terminator) {
                 handle_crlf(c);
                 m_state = State::END_OF_ROW;
@@ -123,6 +128,7 @@ namespace aria {
               break;
 
             case State::IN_ESCAPED_FIELD:
+              m_cursor++;
               if (c == m_escape) {
                 m_state = State::IN_ESCAPED_ESCAPE;
               } else {
@@ -132,6 +138,7 @@ namespace aria {
               break;
 
             case State::IN_ESCAPED_ESCAPE:
+              m_cursor++;
               if (c == m_terminator) {
                 handle_crlf(c);
                 m_state = State::END_OF_ROW;
@@ -234,13 +241,48 @@ namespace aria {
 
         return &m_inputbuf[m_cursor];
       }
+    public:
+      class iterator {
+      public:
+        explicit iterator(CsvParser *p, bool end = false): m_parser(p), m_row(), m_cursor(0) {
+          if (!end) {
+            m_row.reserve(50);
+            next();
+          }
+        }
+        void operator++(int) { next(); }
+        void operator++() { next(); }
+        bool operator==(const iterator&) const { return m_row.empty(); }
+        bool operator!=(const iterator&) const { return !m_row.empty(); }
+        std::vector<std::string>& operator*() { return m_row; }
 
-      // Same as top_token(), but it moves the cursor forward
-      char* pop_token() {
-        char *token = top_token();
-        m_cursor++;
-        return token;
-      }
+        using difference_type = std::ptrdiff_t;
+        using value_type = std::vector<std::string>;
+        using pointer = const std::vector<std::string>*;
+        using reference = const std::vector<std::string>&;
+        using iterator_category = std::input_iterator_tag;
+      private:
+        CsvParser *m_parser;
+        std::vector<std::string> m_row;
+        std::vector<std::string>::size_type m_cursor;
+
+        void next() {
+          m_row.clear();
+          for (;;) {
+            auto field = m_parser->next_field();
+            switch (field.type) {
+              case FieldType::CSV_END:
+              case FieldType::ROW_END:
+                return;
+              case FieldType::DATA:
+                m_row.push_back(field.data);
+            }
+          }
+        }
+      };
+
+      iterator begin() { return iterator(this); };
+      iterator end() { return iterator(this, true); };
     };
   }
 }

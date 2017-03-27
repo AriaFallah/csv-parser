@@ -6,7 +6,11 @@ using namespace aria::csv;
 int main(int argc, char **argv) {
   if (argc < 2) return 1;
 
-  CsvParser reader(argv[1]);
-  while (reader.get_row()) {}
-  std::cout << "done!\n";
+  CsvParser parser(argv[1]);
+  while (true) {
+    auto field = parser.next_field();
+    if (field.type == FieldType::CSV_END) {
+      break;
+    }
+  }
 }
