@@ -26,6 +26,8 @@ namespace aria {
       return !(c == t);
     }
 
+    // Wraps returned fields so we can also indicate that
+    // the CSV is returning things like row endings
     struct Field {
       explicit Field(FieldType t): type(t) {}
       explicit Field(const std::string& str): type(FieldType::DATA), data(str) {}
@@ -33,7 +35,6 @@ namespace aria {
       FieldType type;
       std::string data;
     };
-
 
     // Reads and parses lines from a csv file
     class CsvParser {
@@ -54,8 +55,8 @@ namespace aria {
       // Creates the CSV parser which by default, splits on commas,
       // uses quotes to escape, and handles CSV files that end in either
       // '\r', '\n', or '\r\n'.
-      CsvParser(const std::string& filename, const Config& c = Config{})
-        : m_file(filename),
+      CsvParser(std::istream& input, const Config& c = Config{})
+        : m_input(input),
           m_escape(c.escape),
           m_delimiter(c.delimiter),
           m_terminator(c.terminator)
@@ -70,7 +71,7 @@ namespace aria {
         return m_state == State::EMPTY;
       }
 
-      // Reads a single row from the CSV
+      // Reads a single field from the CSV
       Field next_field() {
         if (empty()) {
           return Field(FieldType::CSV_END);
@@ -78,7 +79,7 @@ namespace aria {
         m_fieldbuf.clear();
 
         // This loop runs until either the parser has
-        // read an entire row or until there's no tokens left to read
+        // read a full field or until there's no tokens left to read
         for (;;) {
           char *maybe_token = top_token();
 
@@ -179,7 +180,7 @@ namespace aria {
       State m_state = State::START_OF_FIELD;
 
       // Configurable attributes
-      std::ifstream m_file;
+      std::istream& m_input;
       char m_escape;
       char m_delimiter;
       Term m_terminator;
@@ -224,13 +225,13 @@ namespace aria {
         // Refill the input buffer if it's been fully read
         if (m_cursor == m_inputbuf_size) {
           m_cursor = 0;
-          m_file.read(m_inputbuf, INPUTBUF_CAP);
+          m_input.read(m_inputbuf, INPUTBUF_CAP);
 
           // Indicate we hit end of file, and resize
           // input buffer to show that it's not at full capacity
-          if (m_file.eof()) {
+          if (m_input.eof()) {
             m_eof = true;
-            m_inputbuf_size = m_file.gcount();
+            m_inputbuf_size = m_input.gcount();
 
             // Return null if there's nothing left to read
             if (m_inputbuf_size == 0) {
@@ -242,6 +243,8 @@ namespace aria {
         return &m_inputbuf[m_cursor];
       }
     public:
+      // Iterator implementation for the CSV parser, which reads
+      // from the CSV row by row in the form of a vector of strings
       class iterator {
       public:
         using difference_type = std::ptrdiff_t;
