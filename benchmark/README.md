@@ -1,21 +1,24 @@
 # Benchmark
 
-Completely non-scientific benchmark comparing my parser to the fastest node parser I know of
-run over `sample.csv`, which has 36635 rows and 18 columns:
-
-#### `C++` results using my parser:
+#### My parser (C++)
+Compiled with `clang++ -std=c++11 -O2`
 ```
-time ./main.o sample.csv
-done!
-        0.14 real         0.14 user         0.00 sys
+$ time ./bench.out sample.csv
+36634
+        0.06 real         0.06 user         0.00 sys
 ```
 
-#### `node.js` results using `csv-parser`:
-
+#### rust-csv (rust)
+Compiled with `cargo build --release`
 ```
-$ time node main.js sample.csv
-done!
-        0.29 real         0.28 user         0.01 sys
+$ time ./rust/target/release/bench sample.csv
+36634
+        0.02 real         0.01 user         0.00 sys
 ```
 
-Will make this benchmarking a lot more legit in the future.
+#### csv-parser (Node.js)
+```
+$ time node js/main.js sample.csv
+36634
+        0.42 real         0.39 user         0.03 sys
+```
