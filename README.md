@@ -1,6 +1,6 @@
 # CSV Parser
 
-Fast, header-only C++11 CSV parser.
+Fast, header-only, C++11 CSV parser.
 
 ## Usage
 
@@ -49,6 +49,34 @@ int main() {
       std::cout << field << " | ";
     }
     std::cout << std::endl;
+  }
+}
+```
+
+Behind the scenes, when using the range based for, the parser only ever allocates
+as much memory as needed to represent a single row of your CSV. If that's too
+much, you can step down to a lower level, where you read from the CSV a field at
+a time, which only allocates the amount of memory needed for a single field.
+
+```cpp
+#include <iostream>
+#include "./parser.hpp"
+
+using namespace aria::csv;
+
+int main() {
+  CsvParser parser(std::cin);
+
+  for (;;) {
+    auto field = parser.next_field();
+    if (field.type == FieldType::DATA) {
+      std::cout << *field.data << " | ";
+    } else if (field.type == FieldType::ROW_END) {
+      std::cout << std::endl;
+    } else {
+      std::cout << std::endl;
+      break;
+    }
   }
 }
 ```

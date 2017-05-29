@@ -76,6 +76,9 @@ namespace aria {
       explicit CsvParser(std::istream& input): m_input(input) {
         // Reserve space upfront to improve performance
         m_fieldbuf.reserve(FIELDBUF_CAP);
+        if (!m_input.good()) {
+          throw std::runtime_error("Something is wrong with input stream");
+        }
       }
 
       // Change the quote character
