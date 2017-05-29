@@ -2,6 +2,7 @@
 #define ARIA_CSV_H
 
 #include <fstream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -26,43 +27,73 @@ namespace aria {
       return !(c == t);
     }
 
-    // Wraps returned fields so we can also indicate that
-    // the CSV is returning things like row endings
+    // Wraps returned fields so we can also indicate
+    // that we hit row endings or the end of the csv itself
     struct Field {
-      explicit Field(FieldType t): type(t) {}
-      explicit Field(const std::string& str): type(FieldType::DATA), data(str) {}
+      explicit Field(FieldType t): type(t), data(nullptr) {}
+      explicit Field(const std::string& str): type(FieldType::DATA), data(&str) {}
 
       FieldType type;
-      std::string data;
+      const std::string *data;
     };
 
     // Reads and parses lines from a csv file
     class CsvParser {
-    public:
-      // Config object for nicer CsvParser constructor API
-      struct Config {
-        constexpr Config() noexcept {};
-        constexpr Config(char e, char d, char t) noexcept
-        : escape(e),
-          delimiter(d),
-          terminator(static_cast<Term>(t))
-        {}
-        char escape = '"';
-        char delimiter = ',';
-        Term terminator = Term::CRLF;
+    private:
+      // CSV state for state machine
+      enum class State {
+        START_OF_FIELD,
+        IN_FIELD,
+        IN_QUOTED_FIELD,
+        IN_ESCAPED_QUOTE,
+        END_OF_ROW,
+        EMPTY
       };
+      State m_state = State::START_OF_FIELD;
 
+      // Configurable attributes
+      char m_quote = '"';
+      char m_delimiter = ',';
+      Term m_terminator = Term::CRLF;
+      std::istream& m_input;
+
+      // Buffer capacities
+      static constexpr int FIELDBUF_CAP = 1024;
+      static constexpr int INPUTBUF_CAP = 1024 * 128;
+
+      // Buffers
+      std::string m_fieldbuf{};
+      char m_inputbuf[INPUTBUF_CAP]{};
+
+      // Misc
+      bool m_eof = false;
+      size_t m_cursor = INPUTBUF_CAP;
+      size_t m_inputbuf_size = INPUTBUF_CAP;
+    public:
       // Creates the CSV parser which by default, splits on commas,
       // uses quotes to escape, and handles CSV files that end in either
       // '\r', '\n', or '\r\n'.
-      CsvParser(std::istream& input, const Config& c = Config{})
-        : m_input(input),
-          m_escape(c.escape),
-          m_delimiter(c.delimiter),
-          m_terminator(c.terminator)
-      {
+      explicit CsvParser(std::istream& input): m_input(input) {
         // Reserve space upfront to improve performance
         m_fieldbuf.reserve(FIELDBUF_CAP);
+      }
+
+      // Change the quote character
+      CsvParser quote(char c) noexcept {
+        m_quote = c;
+        return *this;
+      }
+
+      // Change the delimiter character
+      CsvParser delimiter(char c) noexcept {
+        m_delimiter = c;
+        return *this;
+      }
+
+      // Change the terminator character
+      CsvParser terminator(char c) noexcept {
+        m_terminator = static_cast<Term>(c);
+        return *this;
       }
 
       // The parser is in the empty state when there are
@@ -100,8 +131,8 @@ namespace aria {
                 return Field(FieldType::ROW_END);
               }
 
-              if (c == m_escape) {
-                m_state = State::IN_ESCAPED_FIELD;
+              if (c == m_quote) {
+                m_state = State::IN_QUOTED_FIELD;
               } else if (c == m_delimiter) {
                 return Field(m_fieldbuf);
               } else {
@@ -128,17 +159,17 @@ namespace aria {
 
               break;
 
-            case State::IN_ESCAPED_FIELD:
+            case State::IN_QUOTED_FIELD:
               m_cursor++;
-              if (c == m_escape) {
-                m_state = State::IN_ESCAPED_ESCAPE;
+              if (c == m_quote) {
+                m_state = State::IN_ESCAPED_QUOTE;
               } else {
                 m_fieldbuf += c;
               }
 
               break;
 
-            case State::IN_ESCAPED_ESCAPE:
+            case State::IN_ESCAPED_QUOTE:
               m_cursor++;
               if (c == m_terminator) {
                 handle_crlf(c);
@@ -146,14 +177,15 @@ namespace aria {
                 return Field(m_fieldbuf);
               }
 
-              if (c == m_escape) {
-                m_state = State::IN_ESCAPED_FIELD;
+              if (c == m_quote) {
+                m_state = State::IN_QUOTED_FIELD;
                 m_fieldbuf += c;
               } else if (c == m_delimiter) {
                 m_state = State::START_OF_FIELD;
                 return Field(m_fieldbuf);
               } else {
-                throw std::runtime_error("CSV is malformed");
+                m_state = State::IN_FIELD;
+                m_fieldbuf += c;
               }
 
               break;
@@ -168,36 +200,6 @@ namespace aria {
         }
       }
     private:
-      // CSV state for state machine
-      enum class State {
-        START_OF_FIELD,
-        IN_FIELD,
-        IN_ESCAPED_FIELD,
-        IN_ESCAPED_ESCAPE,
-        END_OF_ROW,
-        EMPTY
-      };
-      State m_state = State::START_OF_FIELD;
-
-      // Configurable attributes
-      std::istream& m_input;
-      char m_escape;
-      char m_delimiter;
-      Term m_terminator;
-
-      // Buffer capacities
-      static constexpr int FIELDBUF_CAP = 1024;
-      static constexpr int INPUTBUF_CAP = 1024 * 128;
-
-      // Buffers
-      std::string m_fieldbuf{};
-      char m_inputbuf[INPUTBUF_CAP]{};
-
-      // Misc
-      bool m_eof = false;
-      size_t m_cursor = INPUTBUF_CAP;
-      size_t m_inputbuf_size = INPUTBUF_CAP;
-
       // When the parser hits the end of a line it needs
       // to check the special case of '\r\n' as a terminator.
       // If it finds that the previous token was a '\r', and
@@ -294,18 +296,29 @@ namespace aria {
         int m_current_row = -1;
 
         void next() {
-          m_row.clear();
+          value_type::size_type num_fields = 0;
           for (;;) {
             auto field = m_parser->next_field();
             switch (field.type) {
               case FieldType::CSV_END:
+                if (num_fields < m_row.size()) {
+                  m_row.resize(num_fields);
+                }
                 m_current_row = -1;
                 return;
               case FieldType::ROW_END:
+                if (num_fields < m_row.size()) {
+                  m_row.resize(num_fields);
+                }
                 m_current_row++;
                 return;
               case FieldType::DATA:
-                m_row.push_back(field.data);
+                if (num_fields < m_row.size()) {
+                  m_row[num_fields] = std::move(*field.data);
+                } else {
+                  m_row.push_back(std::move(*field.data));
+                }
+                num_fields++;
             }
           }
         }
