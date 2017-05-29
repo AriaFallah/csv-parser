@@ -9,14 +9,8 @@ int main(int, char **argv) {
   std::ifstream f(argv[1]);
   CsvParser parser(f);
 
-  while (true) {
-    auto field = parser.next_field();
-    if (field.type == FieldType::ROW_END) {
-      ++count;
-    }
-    if (field.type == FieldType::CSV_END) {
-      break;
-    }
+  for (auto& row : parser) {
+    ++count;
   }
 
   std::cout << count << std::endl;

@@ -1,11 +1,13 @@
 # Benchmark
 
-#### My parser (C++)
+Parses `sample.csv`, and outputs the number of rows.
+
+#### My parser (c++)
 Compiled with `clang++ -std=c++11 -O2`
 ```
 $ time ./bench.out sample.csv
 36634
-        0.06 real         0.06 user         0.00 sys
+        0.04 real         0.04 user         0.00 sys
 ```
 
 #### rust-csv (rust)
@@ -16,7 +18,7 @@ $ time ./rust/target/release/bench sample.csv
         0.02 real         0.01 user         0.00 sys
 ```
 
-#### csv-parser (Node.js)
+#### csv-parser (node.js)
 ```
 $ time node js/main.js sample.csv
 36634
