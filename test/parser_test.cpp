@@ -136,3 +136,37 @@ TEST_CASE("utf8") {
   };
   CHECK(read_all(parser) == expected);
 }
+
+TEST_CASE("different delimiter") {
+  std::ifstream f("./data/delimiter.csv");
+  CsvParser parser = CsvParser(f)
+    .delimiter(';');
+  CSV expected = {
+    { "a", "b", "c" },
+    { "1", "2", "3" },
+    { "4", "5", "," }
+  };
+  CHECK(read_all(parser) == expected);
+}
+
+TEST_CASE("different terminator") {
+  std::ifstream f("./data/terminator.csv");
+  CsvParser parser = CsvParser(f)
+    .terminator(';');
+  CSV expected = {
+    { "a", "b", "c" },
+    { "1", "2", "3" },
+    { "4", "5", "6\n" }
+  };
+  CHECK(read_all(parser) == expected);
+}
+
+TEST_CASE("different quote") {
+  std::ifstream f("./data/quote.csv");
+  CsvParser parser = CsvParser(f)
+    .quote('\'');
+  CSV expected = {
+    { "1, 2, 3", "4, 5, 6", "\n7\n8\n9" }
+  };
+  CHECK(read_all(parser) == expected);
+}
