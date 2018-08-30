@@ -14,7 +14,7 @@ namespace aria {
     using CSV = std::vector<std::vector<std::string>>;
 
     // Checking for '\n', '\r', and '\r\n' by default
-    bool operator==(const char c, const Term t) {
+    inline bool operator==(const char c, const Term t) {
       switch (t) {
         case Term::CRLF:
           return c == '\r' || c == '\n';
@@ -23,7 +23,7 @@ namespace aria {
       }
     }
 
-    bool operator!=(const char c, const Term t) {
+    inline bool operator!=(const char c, const Term t) {
       return !(c == t);
     }
 
