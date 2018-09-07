@@ -50,6 +50,8 @@ namespace aria {
         EMPTY
       };
       State m_state = State::START_OF_FIELD;
+      std::streamoff m_filesize = 0;
+      std::streamoff m_scanposition = -INPUTBUF_CAP;
 
       // Configurable attributes
       char m_quote = '"';
@@ -79,6 +81,14 @@ namespace aria {
         if (!m_input.good()) {
           throw std::runtime_error("Something is wrong with input stream");
         }
+
+        m_input.seekg(0, std::ios::beg);
+        auto start = m_input.tellg();
+        m_input.seekg(0, std::ios::end);
+        auto finalpos = m_input.tellg();
+        m_input.seekg(0, std::ios::beg);
+
+        m_filesize = finalpos - start;
       }
 
       // Change the quote character
@@ -103,6 +113,18 @@ namespace aria {
       // no more tokens left to read from the input buffer
       bool empty() {
         return m_state == State::EMPTY;
+      }
+
+      std::streamoff filesize()
+      {
+          return m_filesize;
+      }
+
+      // Not the actual position in the stream (its buffered) just the
+      // position up to last availiable token
+      std::streamoff position()
+      {
+          return m_scanposition + static_cast<std::streamoff>(m_cursor);
       }
 
       // Reads a single field from the CSV
@@ -229,6 +251,7 @@ namespace aria {
 
         // Refill the input buffer if it's been fully read
         if (m_cursor == m_inputbuf_size) {
+          m_scanposition += static_cast<std::streamoff>(m_cursor);
           m_cursor = 0;
           m_input.read(m_inputbuf, INPUTBUF_CAP);
 
