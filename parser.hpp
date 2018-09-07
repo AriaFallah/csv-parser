@@ -82,13 +82,30 @@ namespace aria {
           throw std::runtime_error("Something is wrong with input stream");
         }
 
+        // Not all istreams are seekable (cin)
         m_input.seekg(0, std::ios::beg);
-        auto start = m_input.tellg();
-        m_input.seekg(0, std::ios::end);
-        auto finalpos = m_input.tellg();
-        m_input.seekg(0, std::ios::beg);
-
-        m_filesize = finalpos - start;
+        if(!m_input.fail())
+        {
+            auto start = m_input.tellg();
+            m_input.seekg(0, std::ios::end);
+            if(m_input.fail())
+            {
+                m_input.clear();
+                return;
+            }
+            auto finalpos = m_input.tellg();
+            m_input.seekg(0, std::ios::beg);
+            if(m_input.fail())
+            {
+                m_input.clear();
+                return;
+            }
+            m_filesize = finalpos - start;
+        }
+        else
+        {
+            m_input.clear();
+        }
       }
 
       // Change the quote character
