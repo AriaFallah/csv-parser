@@ -50,8 +50,6 @@ namespace aria {
         EMPTY
       };
       State m_state = State::START_OF_FIELD;
-      std::streamoff m_filesize = 0;
-      std::streamoff m_scanposition = -INPUTBUF_CAP;
 
       // Configurable attributes
       char m_quote = '"';
@@ -71,6 +69,7 @@ namespace aria {
       bool m_eof = false;
       size_t m_cursor = INPUTBUF_CAP;
       size_t m_inputbuf_size = INPUTBUF_CAP;
+      std::streamoff m_scanposition = -INPUTBUF_CAP;
     public:
       // Creates the CSV parser which by default, splits on commas,
       // uses quotes to escape, and handles CSV files that end in either
@@ -80,31 +79,6 @@ namespace aria {
         m_fieldbuf.reserve(FIELDBUF_CAP);
         if (!m_input.good()) {
           throw std::runtime_error("Something is wrong with input stream");
-        }
-
-        // Not all istreams are seekable (cin)
-        m_input.seekg(0, std::ios::beg);
-        if(!m_input.fail())
-        {
-            auto start = m_input.tellg();
-            m_input.seekg(0, std::ios::end);
-            if(m_input.fail())
-            {
-                m_input.clear();
-                return;
-            }
-            auto finalpos = m_input.tellg();
-            m_input.seekg(0, std::ios::beg);
-            if(m_input.fail())
-            {
-                m_input.clear();
-                return;
-            }
-            m_filesize = finalpos - start;
-        }
-        else
-        {
-            m_input.clear();
         }
       }
 
@@ -132,14 +106,9 @@ namespace aria {
         return m_state == State::EMPTY;
       }
 
-      std::streamoff filesize()
-      {
-          return m_filesize;
-      }
-
       // Not the actual position in the stream (its buffered) just the
       // position up to last availiable token
-      std::streamoff position()
+      std::streamoff position() const
       {
           return m_scanposition + static_cast<std::streamoff>(m_cursor);
       }
