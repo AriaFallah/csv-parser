@@ -58,6 +58,11 @@ as much memory as needed to represent a single row of your CSV. If that's too
 much, you can step down to a lower level, where you read from the CSV a field at
 a time, which only allocates the amount of memory needed for a single field.
 
+It is possible to inspect the current cursor position using ```parser.position()```.
+This will return the position of the last parsed token. This is useful when reporting
+things like progress through a file. Use ```file.seekg(0, std::ios::end);``` to get a
+file size.
+
 ```cpp
 #include <iostream>
 #include "./parser.hpp"
