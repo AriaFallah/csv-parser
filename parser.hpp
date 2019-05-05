@@ -113,6 +113,13 @@ namespace aria {
           return m_scanposition + static_cast<std::streamoff>(m_cursor);
       }
 
+      //Skips all fields in current row and moves to next row
+      void next_row(){
+        Field field = next_field();
+        while(field.type != FieldType::ROW_END && field.type != FieldType::CSV_END)
+         {       field = next_field();      }
+      }
+
       // Reads a single field from the CSV
       Field next_field() {
         if (empty()) {
