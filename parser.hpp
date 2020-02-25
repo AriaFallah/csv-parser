@@ -9,7 +9,7 @@
 
 namespace aria {
   namespace csv {
-    enum class Term : char { CRLF = -2 };
+    enum class Term : char { CRLF = 13 };
     enum class FieldType { DATA, ROW_END, CSV_END };
     using CSV = std::vector<std::vector<std::string>>;
 
