@@ -139,7 +139,8 @@ namespace aria {
               m_cursor++;
               if (c == m_terminator) {
                 handle_crlf(c);
-                return Field(FieldType::ROW_END);
+                m_state = State::END_OF_ROW;
+                return Field(m_fieldbuf);
               }
 
               if (c == m_quote) {
