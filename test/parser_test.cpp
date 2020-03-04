@@ -39,6 +39,17 @@ TEST_CASE("empty") {
   CHECK(read_all(parser) == expected);
 }
 
+TEST_CASE("emptyUnquoted") {
+  std::ifstream f("./data/emptyUnquoted.csv");
+  CsvParser parser(f);
+  CSV expected = {
+    { "a", "b", "c" },
+    { "1", "", "" },
+    { "2", "3", "4" }
+  };
+  CHECK(read_all(parser) == expected);
+}
+
 TEST_CASE("empty crlf") {
   std::ifstream f("./data/empty_crlf.csv");
   CsvParser parser(f);
