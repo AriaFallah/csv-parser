@@ -63,7 +63,7 @@ namespace aria {
 
       // Buffers
       std::string m_fieldbuf{};
-      char m_inputbuf[INPUTBUF_CAP]{};
+			std::unique_ptr<char[]> m_inputbuf = std::unique_ptr<char[]>(new char[INPUTBUF_CAP]{});
 
       // Misc
       bool m_eof = false;
@@ -83,21 +83,21 @@ namespace aria {
       }
 
       // Change the quote character
-      CsvParser& quote(char c) noexcept {
+      CsvParser&& quote(char c) noexcept {
         m_quote = c;
-        return *this;
+        return std::move(*this);
       }
 
       // Change the delimiter character
-      CsvParser& delimiter(char c) noexcept {
+      CsvParser&& delimiter(char c) noexcept {
         m_delimiter = c;
-        return *this;
+        return std::move(*this);
       }
 
       // Change the terminator character
-      CsvParser& terminator(char c) noexcept {
+      CsvParser&& terminator(char c) noexcept {
         m_terminator = static_cast<Term>(c);
-        return *this;
+        return std::move(*this);
       }
 
       // The parser is in the empty state when there are
@@ -240,7 +240,7 @@ namespace aria {
         if (m_cursor == m_inputbuf_size) {
           m_scanposition += static_cast<std::streamoff>(m_cursor);
           m_cursor = 0;
-          m_input.read(m_inputbuf, INPUTBUF_CAP);
+          m_input.read(m_inputbuf.get(), INPUTBUF_CAP);
 
           // Indicate we hit end of file, and resize
           // input buffer to show that it's not at full capacity
