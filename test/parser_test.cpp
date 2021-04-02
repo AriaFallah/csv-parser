@@ -6,7 +6,7 @@
 
 using namespace aria::csv;
 
-CSV read_all(CsvParser p) {
+CSV read_all(CsvParser& p) {
   CSV csv;
   for (auto& row : p) {
     std::vector<std::string> r;
