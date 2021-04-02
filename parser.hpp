@@ -63,7 +63,7 @@ namespace aria {
 
       // Buffers
       std::string m_fieldbuf{};
-			std::unique_ptr<char[]> m_inputbuf = std::unique_ptr<char[]>(new char[INPUTBUF_CAP]{});
+      std::unique_ptr<char[]> m_inputbuf = std::unique_ptr<char[]>(new char[INPUTBUF_CAP]{});
 
       // Misc
       bool m_eof = false;
