@@ -246,7 +246,7 @@ namespace aria {
           // input buffer to show that it's not at full capacity
           if (m_input.eof()) {
             m_eof = true;
-            m_inputbuf_size = m_input.gcount();
+            m_inputbuf_size = static_cast<size_t>(m_input.gcount());
 
             // Return null if there's nothing left to read
             if (m_inputbuf_size == 0) {
