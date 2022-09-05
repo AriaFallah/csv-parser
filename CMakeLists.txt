@@ -1,6 +1,7 @@
 project(AriaCsvParser)
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 add_library(${PROJECT_NAME} INTERFACE)
 
@@ -22,3 +23,15 @@ install(EXPORT ${PROJECT_NAME}Targets
     FILE AriaCsvParserTargets.cmake
     DESTINATION lib/cmake/${PROJECT_NAME}
 )
+
+configure_package_config_file(Config.cmake.in 
+    ${PROJECT_NAME}Config.cmake
+    INSTALL_DESTINATION "lib/cmake/${PROJECT_NAME}"
+    NO_SET_AND_CHECK_MACRO
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO
+    )
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+    DESTINATION lib/cmake/${PROJECT_NAME}
+    )
