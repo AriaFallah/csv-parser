@@ -211,7 +211,38 @@ namespace aria {
           }
         }
       }
-    private:
+	  static bool ReadUtf8_BOM(std::ifstream& is)
+	  {
+		  const uint8_t c0 = is.get();
+		  if (c0 != 0xEF)
+		  {
+			  is.putback(c0);
+		  }
+		  else
+		  {
+			  const uint8_t c1 = is.get();
+			  if (c1 != 0xBB)
+			  {
+				  is.putback(c1);
+				  is.putback(c0);
+			  }
+			  else
+			  {
+				  const uint8_t c2 = is.get();
+				  if (c2 != 0xBF)
+				  {
+					  is.putback(c2);
+					  is.putback(c1);
+					  is.putback(c0);
+				  }
+
+				  return true;
+			  }
+		  }
+
+		  return false;
+	  }
+private:
       // When the parser hits the end of a line it needs
       // to check the special case of '\r\n' as a terminator.
       // If it finds that the previous token was a '\r', and
