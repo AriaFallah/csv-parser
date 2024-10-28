@@ -1,3 +1,5 @@
 *.o*
 node_modules
 target
+out
+.DS_Store

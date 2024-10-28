@@ -1,0 +1,7 @@
+CompileFlags:
+  CompilationDatabase: out
+
+Diagnostics:
+  ClangTidy:
+    Remove:
+      - modernize-use-trailing-return-type

@@ -89,3 +89,7 @@ It is possible to inspect the current cursor position using `parser.position()`.
 This will return the position of the last parsed token. This is useful when
 reporting things like progress through a file. You can use
 `file.seekg(0, std::ios::end);` to get a file size.
+
+## Testing
+
+Run `cmake -B out && cmake --build out && ./out/parser_test` in test dir
