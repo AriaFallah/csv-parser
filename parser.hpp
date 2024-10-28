@@ -66,9 +66,9 @@ private:
 
   // Misc
   bool m_eof = false;
-  size_t m_cursor = INPUTBUF_CAP;
-  size_t m_inputbuf_size = INPUTBUF_CAP;
-  std::streamoff m_scanposition = -INPUTBUF_CAP;
+  size_t m_cursor = 0;
+  size_t m_bytes_read = 0;
+  std::streamoff m_scanposition = 0;
 
 public:
   // Delete copy constructor and assignment
@@ -238,30 +238,38 @@ private:
   // is also empty return a nullptr.
   auto top_token() -> char * {
     // Return null if there's nothing left to read
-    if (m_eof && m_cursor == m_inputbuf_size) {
+    if (m_eof && m_cursor == m_bytes_read) {
       return nullptr;
     }
 
     // Refill the input buffer if it's been fully read
-    if (m_cursor == m_inputbuf_size) {
-      m_scanposition += static_cast<std::streamoff>(m_cursor);
-      m_cursor = 0;
-      m_input->read(m_inputbuf.data(), INPUTBUF_CAP);
-
-      // Indicate we hit end of file, and resize
-      // input buffer to show that it's not at full capacity
-      if (m_input->eof()) {
-        m_eof = true;
-        m_inputbuf_size = static_cast<size_t>(m_input->gcount());
-
-        // Return null if there's nothing left to read
-        if (m_inputbuf_size == 0) {
-          return nullptr;
-        }
+    if (m_cursor == m_bytes_read) {
+      fill_buffer();
+      // Return null if there's nothing left to read
+      if (m_bytes_read == 0) {
+        return nullptr;
       }
     }
 
     return &m_inputbuf[m_cursor];
+  }
+
+  void fill_buffer() {
+    m_input->read(m_inputbuf.data(), INPUTBUF_CAP);
+    m_bytes_read = static_cast<size_t>(m_input->gcount());
+    m_eof = m_input->eof();
+    m_cursor = 0;
+
+    if (m_scanposition == 0 && m_bytes_read >= 3 && m_inputbuf[0] == '\xEF' &&
+        m_inputbuf[1] == '\xBB' && m_inputbuf[2] == '\xBF') {
+      if (m_bytes_read > 3) {
+        m_cursor = 3;
+      } else {
+        m_bytes_read = 0;
+      }
+    }
+
+    m_scanposition += static_cast<std::streamoff>(m_bytes_read);
   }
 
 public:

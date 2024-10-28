@@ -178,3 +178,27 @@ TEST_CASE("different quote") {
   };
   CHECK(read_all(parser) == expected);
 }
+
+TEST_CASE("BOM simple") {
+  std::ifstream f("./data/bom_simple.csv");
+  CsvParser parser(f);
+  CSV expected = {
+    { "a", "b", "c" },
+    { "1", "2", "3" }
+  };
+  CHECK(read_all(parser) == expected);
+}
+
+TEST_CASE("BOM empty") {
+  std::ifstream f("./data/bom_empty.csv");
+  CsvParser parser(f);
+  CSV expected = {};
+  CHECK(read_all(parser) == expected);
+}
+
+TEST_CASE("empty_file") {
+    std::ifstream f("./data/empty_file.csv");
+    CsvParser parser(f);
+    CSV expected = {};
+    CHECK(read_all(parser) == expected);
+}
