@@ -1,3 +1,4 @@
+#define CATCH_PLATFORM_MAC
 #define CATCH_CONFIG_MAIN
 
 #include <fstream>
@@ -6,14 +7,10 @@
 
 using namespace aria::csv;
 
-CSV read_all(CsvParser& p) {
+auto read_all(CsvParser& p) -> CSV {
   CSV csv;
-  for (auto& row : p) {
-    std::vector<std::string> r;
-    for (auto& field : row) {
-      r.push_back(field);
-    }
-    csv.push_back(r);
+  for (const auto& row : p) {
+    csv.push_back(row);
   }
   return csv;
 }

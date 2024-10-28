@@ -1,6 +1,6 @@
 # CSV Parser
 
-Fast, header-only, C++11 CSV parser.
+Fast, simple, header-only, C++11 CSV parser.
 
 ## Usage
 

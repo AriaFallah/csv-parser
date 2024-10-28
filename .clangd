@@ -1,0 +1,35 @@
+CompileFlags:
+  Add:
+    - -std=c++11
+    - -Wall
+    - -Wextra
+    - -Werror
+    - -pedantic
+    - -I.
+    - -Iinclude
+    - -Isrc
+
+Diagnostics:
+  ClangTidy:
+    Add:
+      - modernize*
+      - performance*
+      - bugprone*
+      - readability*
+    Remove:
+      - readability-identifier-length
+      - readability-function-cognitive-complexity
+
+Index:
+  Background: Build
+
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+
+Style:
+  FullyQualifiedNamespaces: No
+
+Hover:
+  ShowAKA: Yes
