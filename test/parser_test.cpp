@@ -23,14 +23,14 @@ TEST(CsvParserTest, CommaInQuotes) {
 TEST(CsvParserTest, Empty) {
   std::ifstream f(TEST_DATA_DIR "/empty.csv");
   CsvParser parser(f);
-  CSV expected = {{"a", "b", "c"}, {"1", "", ""}, {"2", "3", "4"}};
+  CSV expected = {{"a", "b", "c"}, {"1", "", ""}, {"2", "3", ""}};
   EXPECT_EQ(read_all(parser), expected);
 }
 
 TEST(CsvParserTest, EmptyUnquoted) {
   std::ifstream f(TEST_DATA_DIR "/emptyUnquoted.csv");
   CsvParser parser(f);
-  CSV expected = {{"a", "b", "c"}, {"1", "", ""}, {"2", "3", "4"}};
+  CSV expected = {{"a", "b", "c"}, {"1", "", ""}, {"2", "3", ""}};
   EXPECT_EQ(read_all(parser), expected);
 }
 

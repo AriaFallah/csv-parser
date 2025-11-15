@@ -133,9 +133,11 @@ public:
       // If we're out of tokens to read return whatever's left in the
       // field and row buffers. If there's nothing left, return null.
       if (maybe_token == nullptr) {
-        m_state = State::EMPTY;
-        return !m_fieldbuf.empty() ? Field(std::move(m_fieldbuf))
-                                   : Field(FieldType::CSV_END);
+        if(m_state == State::END_OF_ROW || m_scanposition == 0) {
+          return Field(FieldType::CSV_END);
+        }
+        m_state = State::END_OF_ROW;
+        return Field(std::move(m_fieldbuf));
       }
 
       // Parsing the CSV is done using a finite state machine
