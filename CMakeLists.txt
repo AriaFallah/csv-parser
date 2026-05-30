@@ -1,7 +1,10 @@
-project(AriaCsvParser)
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+project(AriaCsvParser)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+
+option(ARIA_CSV_BUILD_FUZZERS "Build parser fuzz targets" OFF)
+option(ARIA_CSV_BUILD_LIBFUZZER "Build the libFuzzer parser target" OFF)
 
 add_library(${PROJECT_NAME} INTERFACE)
 
@@ -16,7 +19,8 @@ target_include_directories( ${PROJECT_NAME}
                 )
 
 install(TARGETS ${PROJECT_NAME}
-        EXPORT ${PROJECT_NAME}Targets)
+        EXPORT ${PROJECT_NAME}Targets
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 install(EXPORT ${PROJECT_NAME}Targets
     NAMESPACE AriaCsvParser::
@@ -35,3 +39,7 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
     DESTINATION lib/cmake/${PROJECT_NAME}
     )
+
+if(ARIA_CSV_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
+endif()

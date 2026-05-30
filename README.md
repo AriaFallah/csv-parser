@@ -20,6 +20,23 @@ or you can read from `stdin`
 CsvParser parser(std::cin);
 ```
 
+The parser can also own the input stream, which is safer when the parser needs
+to outlive the scope where the stream is created.
+
+```cpp
+auto parser = CsvParser::from_file("some_file.csv");
+```
+
+or
+
+```cpp
+std::unique_ptr<std::istream> input(new std::ifstream("some_file.csv"));
+CsvParser parser(std::move(input));
+```
+
+When using the `std::istream&` constructor, the caller must keep the stream alive
+for at least as long as the parser.
+
 Moreover, you can configure the parser by chaining configuration methods like
 
 ```cpp
@@ -72,7 +89,7 @@ int main() {
     auto field = parser.next_field();
     switch (field.type) {
       case FieldType::DATA:
-        std::cout << *field.data << " | ";
+        std::cout << field.data << " | ";
         break;
       case FieldType::ROW_END:
         std::cout << std::endl;
@@ -92,4 +109,21 @@ reporting things like progress through a file. You can use
 
 ## Testing
 
-Run `cmake -B out && cmake --build out && ./out/parser_test` in test dir
+Run the unit tests with:
+
+```sh
+cmake -S test -B test/out
+cmake --build test/out
+./test/out/parser_test
+```
+
+Property tests are opt-in and use RapidCheck:
+
+```sh
+cmake -S test -B test/out -DARIA_CSV_ENABLE_PROPERTY_TESTS=ON
+cmake --build test/out
+./test/out/parser_property_test
+```
+
+Fuzz targets live in `fuzz/`. See `fuzz/README.md` for libFuzzer and AFL++
+commands.

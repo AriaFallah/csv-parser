@@ -10,6 +10,7 @@ int main(int, char **argv) {
   CsvParser parser(f);
 
   for (auto& row : parser) {
+    (void)row;
     ++count;
   }
 

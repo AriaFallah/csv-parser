@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure unit tests
+        run: cmake -S test -B test/out
+
+      - name: Build unit tests
+        run: cmake --build test/out --parallel
+
+      - name: Run unit tests
+        run: ./test/out/parser_test
+
+      - name: Configure property tests
+        run: cmake -S test -B test/property-out -DARIA_CSV_ENABLE_PROPERTY_TESTS=ON
+
+      - name: Build property tests
+        run: cmake --build test/property-out --parallel
+
+      - name: Run property tests
+        run: ./test/property-out/parser_property_test
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build AFL-compatible harness
+        run: clang++ -std=c++11 -Wall -Wextra -pedantic -I. fuzz/afl_parser.cpp -o /tmp/aria_csv_afl_parser
+
+      - name: Build libFuzzer harness
+        run: clang++ -std=c++11 -Wall -Wextra -pedantic -I. -fsanitize=fuzzer,address,undefined fuzz/libfuzzer_parser.cpp -o /tmp/aria_csv_libfuzzer
+
+      - name: Configure CMake fuzz targets
+        run: cmake -S . -B /tmp/aria_csv_fuzz_build -DARIA_CSV_BUILD_FUZZERS=ON
+
+      - name: Build CMake AFL-compatible fuzz target
+        run: cmake --build /tmp/aria_csv_fuzz_build --target aria_csv_afl_fuzzer --parallel
+
+      - name: Run libFuzzer smoke test
+        run: |
+          mkdir -p /tmp/aria_csv_corpus
+          cp test/data/*.csv /tmp/aria_csv_corpus/
+          /tmp/aria_csv_libfuzzer /tmp/aria_csv_corpus -runs=1000
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build benchmark harnesses
+        run: |
+          clang++ -std=c++11 -Wall -Wextra -pedantic -I. -c benchmark/cpp/main.cpp -o /tmp/aria_csv_benchmark.o
+          clang++ -std=c++11 -Wall -Wextra -pedantic -I. -c benchmark/profile.cpp -o /tmp/aria_csv_profile.o
+          clang++ -std=c++11 -Wall -Wextra -pedantic -I. -c benchmark/optimize.cpp -o /tmp/aria_csv_optimize.o
+
+      - name: Run optimization harness smoke test
+        run: |
+          clang++ -std=c++11 -O2 -DNDEBUG -I. benchmark/optimize.cpp -o /tmp/aria_csv_optimize
+          /tmp/aria_csv_optimize 1 | tee /tmp/aria_csv_optimize_a.csv
+          /tmp/aria_csv_optimize 1 | tee /tmp/aria_csv_optimize_b.csv
+          python3 benchmark/compare_results.py /tmp/aria_csv_optimize_a.csv /tmp/aria_csv_optimize_b.csv

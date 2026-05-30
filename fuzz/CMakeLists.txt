@@ -1,0 +1,15 @@
+add_executable(aria_csv_afl_fuzzer afl_parser.cpp)
+target_link_libraries(aria_csv_afl_fuzzer PRIVATE AriaCsvParser)
+target_compile_features(aria_csv_afl_fuzzer PRIVATE cxx_std_11)
+
+add_executable(aria_csv_random_fuzzer random_driver.cpp)
+target_link_libraries(aria_csv_random_fuzzer PRIVATE AriaCsvParser)
+target_compile_features(aria_csv_random_fuzzer PRIVATE cxx_std_11)
+
+if(ARIA_CSV_BUILD_LIBFUZZER)
+    add_executable(aria_csv_libfuzzer libfuzzer_parser.cpp)
+    target_link_libraries(aria_csv_libfuzzer PRIVATE AriaCsvParser)
+    target_compile_features(aria_csv_libfuzzer PRIVATE cxx_std_11)
+    target_compile_options(aria_csv_libfuzzer PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(aria_csv_libfuzzer PRIVATE -fsanitize=fuzzer,address,undefined)
+endif()

@@ -1,10 +1,14 @@
 #ifndef ARIA_CSV_H
 #define ARIA_CSV_H
 
+#include <cstddef>
 #include <fstream>
+#include <istream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace aria {
@@ -54,7 +58,8 @@ private:
   char m_quote = '"';
   char m_delimiter = ',';
   Term m_terminator = Term::CRLF;
-  std::istream *m_input;
+  std::unique_ptr<std::istream> m_owned_input;
+  std::istream *m_input = nullptr;
 
   // Buffer capacities
   static constexpr int FIELDBUF_CAP = 1024;
@@ -66,6 +71,7 @@ private:
 
   // Misc
   bool m_eof = false;
+  bool m_has_pending_empty_field = false;
   size_t m_cursor = 0;
   size_t m_bytes_read = 0;
   std::streamoff m_scanposition = 0;
@@ -85,9 +91,20 @@ public:
   explicit CsvParser(std::istream &input) : m_input(&input) {
     // Reserve space upfront to improve performance
     m_fieldbuf.reserve(FIELDBUF_CAP);
-    if (!m_input->good()) {
-      throw std::runtime_error("Something is wrong with input stream");
-    }
+    validate_input();
+  }
+
+  // Creates a CSV parser that owns the input stream. This is useful when the
+  // parser must outlive the local scope where the stream was created.
+  explicit CsvParser(std::unique_ptr<std::istream> input)
+      : m_owned_input(std::move(input)), m_input(m_owned_input.get()) {
+    m_fieldbuf.reserve(FIELDBUF_CAP);
+    validate_input();
+  }
+
+  static auto from_file(const std::string &path) -> CsvParser {
+    std::unique_ptr<std::istream> input(new std::ifstream(path));
+    return CsvParser(std::move(input));
   }
 
   // Change the quote character
@@ -133,9 +150,7 @@ public:
       // If we're out of tokens to read return whatever's left in the
       // field and row buffers. If there's nothing left, return null.
       if (maybe_token == nullptr) {
-        m_state = State::EMPTY;
-        return !m_fieldbuf.empty() ? Field(std::move(m_fieldbuf))
-                                   : Field(FieldType::CSV_END);
+        return finish_at_eof(m_state);
       }
 
       // Parsing the CSV is done using a finite state machine
@@ -145,17 +160,25 @@ public:
         m_cursor++;
         if (c == m_terminator) {
           handle_crlf(c);
-          m_state = State::END_OF_ROW;
-          return Field(std::move(m_fieldbuf));
+          if (m_has_pending_empty_field) {
+            m_state = State::END_OF_ROW;
+            m_has_pending_empty_field = false;
+            return Field(std::move(m_fieldbuf));
+          }
+          m_has_pending_empty_field = false;
+          return Field(FieldType::ROW_END);
         }
 
         if (c == m_quote) {
+          m_has_pending_empty_field = false;
           m_state = State::IN_QUOTED_FIELD;
         } else if (c == m_delimiter) {
+          m_has_pending_empty_field = true;
           return Field(std::move(m_fieldbuf));
         } else {
+          m_has_pending_empty_field = false;
           m_state = State::IN_FIELD;
-          m_fieldbuf += c;
+          append_unquoted_field_chars(c);
         }
 
         break;
@@ -165,15 +188,17 @@ public:
         if (c == m_terminator) {
           handle_crlf(c);
           m_state = State::END_OF_ROW;
+          m_has_pending_empty_field = false;
           return Field(std::move(m_fieldbuf));
         }
 
         if (c == m_delimiter) {
           m_state = State::START_OF_FIELD;
+          m_has_pending_empty_field = true;
           return Field(std::move(m_fieldbuf));
         }
 
-        m_fieldbuf += c;
+        append_unquoted_field_chars(c);
         break;
 
       case State::IN_QUOTED_FIELD:
@@ -181,7 +206,7 @@ public:
         if (c == m_quote) {
           m_state = State::IN_ESCAPED_QUOTE;
         } else {
-          m_fieldbuf += c;
+          append_quoted_field_chars(c);
         }
 
         break;
@@ -191,6 +216,7 @@ public:
         if (c == m_terminator) {
           handle_crlf(c);
           m_state = State::END_OF_ROW;
+          m_has_pending_empty_field = false;
           return Field(std::move(m_fieldbuf));
         }
 
@@ -199,10 +225,12 @@ public:
           m_fieldbuf += c;
         } else if (c == m_delimiter) {
           m_state = State::START_OF_FIELD;
+          m_has_pending_empty_field = true;
           return Field(std::move(m_fieldbuf));
         } else {
           m_state = State::IN_FIELD;
-          m_fieldbuf += c;
+          m_has_pending_empty_field = false;
+          append_unquoted_field_chars(c);
         }
 
         break;
@@ -212,12 +240,34 @@ public:
         return Field(FieldType::ROW_END);
 
       case State::EMPTY:
-        throw std::logic_error("You goofed");
+        throw std::logic_error("Parser is already empty");
       }
     }
   }
 
 private:
+  void validate_input() const {
+    if (m_input == nullptr) {
+      throw std::invalid_argument("Input stream is null");
+    }
+
+    if (!m_input->good()) {
+      throw std::runtime_error("Something is wrong with input stream");
+    }
+  }
+
+  auto finish_at_eof(const State previous_state) -> Field {
+    m_state = State::EMPTY;
+    if (m_has_pending_empty_field || !m_fieldbuf.empty() ||
+        previous_state == State::IN_QUOTED_FIELD ||
+        previous_state == State::IN_ESCAPED_QUOTE) {
+      m_has_pending_empty_field = false;
+      return Field(std::move(m_fieldbuf));
+    }
+
+    return Field(FieldType::CSV_END);
+  }
+
   // When the parser hits the end of a line it needs
   // to check the special case of '\r\n' as a terminator.
   // If it finds that the previous token was a '\r', and
@@ -231,6 +281,32 @@ private:
     if ((token != nullptr) && *token == '\n') {
       m_cursor++;
     }
+  }
+
+  void append_unquoted_field_chars(const char first) {
+    m_fieldbuf += first;
+
+    const size_t start = m_cursor;
+    while (m_cursor < m_bytes_read) {
+      const char c = m_inputbuf[m_cursor];
+      if (c == m_delimiter || c == m_terminator) {
+        break;
+      }
+      m_cursor++;
+    }
+
+    m_fieldbuf.append(&m_inputbuf[start], m_cursor - start);
+  }
+
+  void append_quoted_field_chars(const char first) {
+    m_fieldbuf += first;
+
+    const size_t start = m_cursor;
+    while (m_cursor < m_bytes_read && m_inputbuf[m_cursor] != m_quote) {
+      m_cursor++;
+    }
+
+    m_fieldbuf.append(&m_inputbuf[start], m_cursor - start);
   }
 
   // Pulls the next token from the input buffer, but does not move
@@ -255,6 +331,8 @@ private:
   }
 
   void fill_buffer() {
+    m_scanposition += static_cast<std::streamoff>(m_bytes_read);
+
     m_input->read(m_inputbuf.data(), INPUTBUF_CAP);
     m_bytes_read = static_cast<size_t>(m_input->gcount());
     m_eof = m_input->eof();
@@ -268,8 +346,6 @@ private:
         m_bytes_read = 0;
       }
     }
-
-    m_scanposition += static_cast<std::streamoff>(m_bytes_read);
   }
 
 public:

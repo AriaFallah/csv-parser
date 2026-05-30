@@ -1,6 +1,8 @@
 #include "../parser.hpp"
 #include <fstream>
 #include <gtest/gtest.h>
+#include <memory>
+#include <sstream>
 
 using namespace aria::csv;
 
@@ -10,6 +12,12 @@ auto read_all(CsvParser &p) -> CSV {
     csv.push_back(row);
   }
   return csv;
+}
+
+auto parse_string(const std::string &input) -> CSV {
+  std::istringstream stream(input);
+  CsvParser parser(stream);
+  return read_all(parser);
 }
 
 TEST(CsvParserTest, CommaInQuotes) {
@@ -144,4 +152,74 @@ TEST(CsvParserTest, EmptyFile) {
   CsvParser parser(f);
   CSV expected = {};
   EXPECT_EQ(read_all(parser), expected);
+}
+
+TEST(CsvParserTest, TrailingEmptyFieldAtEof) {
+  CSV expected = {{"a", "b", ""}};
+  EXPECT_EQ(parse_string("a,b,"), expected);
+}
+
+TEST(CsvParserTest, EmptyQuotedFieldAtEof) {
+  CSV expected = {{""}};
+  EXPECT_EQ(parse_string("\"\""), expected);
+}
+
+TEST(CsvParserTest, UnclosedEmptyQuotedFieldAtEof) {
+  CSV expected = {{""}};
+  EXPECT_EQ(parse_string("\""), expected);
+}
+
+TEST(CsvParserTest, EmptyFieldsAtEof) {
+  CSV expected = {{"", ""}};
+  EXPECT_EQ(parse_string(","), expected);
+}
+
+TEST(CsvParserTest, EmptyLineStartsWithRowEnd) {
+  std::istringstream stream("\n\n");
+  CsvParser parser(stream);
+
+  const auto first = parser.next_field();
+  const auto second = parser.next_field();
+
+  EXPECT_EQ(first.type, FieldType::ROW_END);
+  EXPECT_EQ(second.type, FieldType::ROW_END);
+}
+
+TEST(CsvParserTest, FinalLineDoesNotNeedTerminator) {
+  CSV expected = {{"a", "b"}, {"1", "2"}};
+  EXPECT_EQ(parse_string("a,b\n1,2"), expected);
+}
+
+TEST(CsvParserTest, PositionTracksParsedTokensNotBufferedBytes) {
+  std::istringstream stream("abc,def");
+  CsvParser parser(stream);
+
+  const auto field = parser.next_field();
+
+  EXPECT_EQ(field.type, FieldType::DATA);
+  EXPECT_EQ(field.data, "abc");
+  EXPECT_EQ(parser.position(), 4);
+}
+
+TEST(CsvParserTest, OwnsInputStreamWhenConstructedWithUniquePtr) {
+  std::unique_ptr<std::istream> stream(new std::istringstream("a,b\n1,2"));
+  CsvParser parser(std::move(stream));
+  CSV expected = {{"a", "b"}, {"1", "2"}};
+  EXPECT_EQ(read_all(parser), expected);
+}
+
+TEST(CsvParserTest, RejectsNullOwnedInputStream) {
+  std::unique_ptr<std::istream> stream;
+  EXPECT_THROW(CsvParser parser(std::move(stream)), std::invalid_argument);
+}
+
+TEST(CsvParserTest, FromFileOwnsInputStream) {
+  CsvParser parser = CsvParser::from_file(TEST_DATA_DIR "/simple.csv");
+  CSV expected = {{"a", "b", "c"}, {"1", "2", "3"}};
+  EXPECT_EQ(read_all(parser), expected);
+}
+
+TEST(CsvParserTest, FromFileRejectsMissingFile) {
+  EXPECT_THROW(CsvParser::from_file(TEST_DATA_DIR "/does_not_exist.csv"),
+               std::runtime_error);
 }

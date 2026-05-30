@@ -9,7 +9,9 @@ fn main() {
     let mut count = 0;
     let file_path = get_first_arg().unwrap();
     let file = File::open(file_path).unwrap();
-    let mut rdr = csv::Reader::from_reader(file);
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(file);
 
     for _ in rdr.records() {
         count += 1;
@@ -18,7 +20,7 @@ fn main() {
     println!("{}", count);
 }
 
-fn get_first_arg() -> Result<OsString, Box<Error>> {
+fn get_first_arg() -> Result<OsString, Box<dyn Error>> {
     match env::args_os().nth(1) {
         None => Err(From::from("expected 1 argument, but got none")),
         Some(file_path) => Ok(file_path),
